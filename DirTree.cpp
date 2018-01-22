@@ -126,3 +126,8 @@ void DirTree::finalize() {
 		p->finalize();
 	}
 }
+
+void DirTree::doNotListAsDirLastInserted()
+{
+	DirTreeNode::setDoNotListAsDirForLastInserted();
+}

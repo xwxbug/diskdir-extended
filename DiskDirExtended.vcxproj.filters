@@ -1,0 +1,253 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{df0bc0f7-e8dc-4871-92a7-d7b102a8ecb0}</UniqueIdentifier>
+      <Extensions>cpp;c;cxx;rc;def;r;odl;idl;hpj;bat</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{16281026-3370-449f-812d-a9ada6bed0e6}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{db5b2168-b72e-490d-87cb-16383c343cb5}</UniqueIdentifier>
+      <Extensions>ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe</Extensions>
+    </Filter>
+    <Filter Include="ZIP">
+      <UniqueIdentifier>{6a95094e-8b8c-486d-a0ab-72beba72c229}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RAR">
+      <UniqueIdentifier>{28610036-50cd-42e5-8c48-696f3a7aa89a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="CAB">
+      <UniqueIdentifier>{be7748ca-8591-43f8-865a-bed1dc6974cc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="TAR">
+      <UniqueIdentifier>{891bef34-4201-4d71-ae09-4f8a8d4c1395}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="BZ2">
+      <UniqueIdentifier>{39ccbd44-37ec-4d5a-b5e8-92c2d5337e51}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ISO">
+      <UniqueIdentifier>{4f0002f7-39cb-45eb-8052-182c1a5f5529}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="CIniFile">
+      <UniqueIdentifier>{4cc7821e-eee0-4f7a-8b58-743c81f6c43b}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="DirTree.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DirTreeNode.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DiskDirExtended.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="inilocator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="settings.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\zlib\adler32.c">
+      <Filter>ZIP</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\zlib\compress.c">
+      <Filter>ZIP</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\zlib\crc32.c">
+      <Filter>ZIP</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\zlib\deflate.c">
+      <Filter>ZIP</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\zlib\gzclose.c">
+      <Filter>ZIP</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\zlib\gzlib.c">
+      <Filter>ZIP</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\zlib\gzread.c">
+      <Filter>ZIP</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\zlib\gzwrite.c">
+      <Filter>ZIP</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\zlib\infback.c">
+      <Filter>ZIP</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\zlib\inffast.c">
+      <Filter>ZIP</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\zlib\inflate.c">
+      <Filter>ZIP</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\zlib\inftrees.c">
+      <Filter>ZIP</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\zlib\contrib\minizip\ioapi.c">
+      <Filter>ZIP</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\zlib\trees.c">
+      <Filter>ZIP</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\zlib\uncompr.c">
+      <Filter>ZIP</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\zlib\contrib\minizip\unzip.c">
+      <Filter>ZIP</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\zlib\zutil.c">
+      <Filter>ZIP</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\unrarlib\unrarlib.c">
+      <Filter>RAR</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\bzip2\blocksort.c">
+      <Filter>BZ2</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\bzip2\bzlib.c">
+      <Filter>BZ2</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\bzip2\compress.c">
+      <Filter>BZ2</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\bzip2\crctable.c">
+      <Filter>BZ2</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\bzip2\decompress.c">
+      <Filter>BZ2</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\bzip2\huffman.c">
+      <Filter>BZ2</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\bzip2\mk251.c">
+      <Filter>BZ2</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\bzip2\randtable.c">
+      <Filter>BZ2</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\iso\iso_wincmd.cpp">
+      <Filter>ISO</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\inifile\IniFile.cpp">
+      <Filter>CIniFile</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="wcx.def">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="ask.ico">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="no.ico">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="yes.ico">
+      <Filter>Resource Files</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="api_totalcmd.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="defs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DirTree.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DirTreeNode.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="inilocator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="settings.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="wcxhead.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>Resource Files</Filter>
+    </ClInclude>
+    <ClInclude Include="resrc1.h">
+      <Filter>Resource Files</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\zlib\crc32.h">
+      <Filter>ZIP</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\zlib\contrib\minizip\crypt.h">
+      <Filter>ZIP</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\zlib\deflate.h">
+      <Filter>ZIP</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\zlib\gzguts.h">
+      <Filter>ZIP</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\zlib\inffast.h">
+      <Filter>ZIP</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\zlib\inffixed.h">
+      <Filter>ZIP</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\zlib\inflate.h">
+      <Filter>ZIP</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\zlib\inftrees.h">
+      <Filter>ZIP</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\zlib\contrib\minizip\ioapi.h">
+      <Filter>ZIP</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\zlib\trees.h">
+      <Filter>ZIP</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\zlib\contrib\minizip\unzip.h">
+      <Filter>ZIP</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\zlib\zconf.h">
+      <Filter>ZIP</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\zlib\zlib.h">
+      <Filter>ZIP</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\zlib\zutil.h">
+      <Filter>ZIP</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\unrarlib\unrarlib.h">
+      <Filter>RAR</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\cab\Include\Fdi.h">
+      <Filter>CAB</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\tar\src\tar.h">
+      <Filter>TAR</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\bzip2\bzlib.h">
+      <Filter>BZ2</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\bzip2\bzlib_private.h">
+      <Filter>BZ2</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\iso\iso.h">
+      <Filter>ISO</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\iso\iso_wincmd.h">
+      <Filter>ISO</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\inifile\IniFile.h">
+      <Filter>CIniFile</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="DiskDirExtended.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+</Project>

@@ -1,12 +1,19 @@
 EXPORTS
 	OpenArchive
+	OpenArchiveW
 	ReadHeader
 	ReadHeaderEx
+	ReadHeaderExW
 	ProcessFile
+	ProcessFileW
 	CloseArchive
 	DeleteFiles
+	DeleteFilesW
 	SetChangeVolProc
+	SetChangeVolProcW
 	SetProcessDataProc
+	SetProcessDataProcW
 	GetPackerCaps
 	PackFiles
+	PackFilesW
 	ConfigurePacker

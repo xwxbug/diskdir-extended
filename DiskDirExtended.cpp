@@ -32,7 +32,9 @@ char curDestPath[MAX_FULL_PATH_LEN];
 char curFileName[MAX_FULL_PATH_LEN];
 char mainSrcPath[MAX_FULL_PATH_LEN]; // first line of .lst file
 tProcessDataProc progressFunction;
+tProcessDataProcW progressFunctionw;
 tChangeVolProc changeVolFunction;
+tChangeVolProcW changeVolFunctionW;
 char todayStr[20]; // "%d.%d.%d\t%d:%d.%d", year, month, day, hour, minute, second
 int basePathCnt = 0;
 HINSTANCE dllInstance;
@@ -48,6 +50,32 @@ int ListTAR(const char* fileName, int fType);
 int ListByWCX(const char* wcx_path, const char* fileName);
 bool firstLineRead; // if the first line from lst file was read (= basePath)
 bool notForTC; // used in ReadHeaderEx - do not remove "c:\" part of file name
+
+LPWSTR utf8_to_unicode(char* sz_utf8_str)
+{
+	DWORD cbSize=MultiByteToWideChar(CP_UTF8,0,sz_utf8_str,-1,0,0);
+	LPWSTR lp_sz_unicode=(LPWSTR)malloc((cbSize+10)*4);
+	memset(lp_sz_unicode,0,(cbSize+10)*4);
+	MultiByteToWideChar(CP_UTF8,0,sz_utf8_str,-1,lp_sz_unicode,cbSize);
+	return lp_sz_unicode;
+}
+LPSTR unicode_to_utf8(wchar_t* sz_unicode_str)
+{
+	DWORD cbSize=WideCharToMultiByte(CP_UTF8,0,sz_unicode_str,-1,0,0,0,0);
+	LPSTR lp_sz_utf8=(LPSTR)malloc(cbSize+10);
+	memset(lp_sz_utf8,0,cbSize+10);
+	WideCharToMultiByte(CP_UTF8,0,sz_unicode_str,-1,lp_sz_utf8,cbSize,0,0);
+	return lp_sz_utf8;
+}
+
+LPSTR unicode_to_ansi(wchar_t* sz_unicode_str)
+{
+	DWORD cbSize=WideCharToMultiByte(CP_ACP,0,sz_unicode_str,-1,0,0,0,0);
+	LPSTR lp_sz_ansi=(LPSTR)malloc(cbSize+10);
+	memset(lp_sz_ansi,0,cbSize+10);
+	WideCharToMultiByte(CP_ACP,0,sz_unicode_str,-1,lp_sz_ansi,cbSize,0,0);
+	return lp_sz_ansi;
+}
 
 HANDLE __stdcall OpenArchive (tOpenArchiveData *archiveData)
 {
@@ -75,6 +103,34 @@ HANDLE __stdcall OpenArchive (tOpenArchiveData *archiveData)
 			return 0;
 	}
 }
+
+HANDLE __stdcall OpenArchiveW (tOpenArchiveDataW *archiveData)
+{
+	HANDLE f;
+
+	switch(archiveData->OpenMode)
+	{
+	case PK_OM_LIST:
+	case PK_OM_EXTRACT:
+		f = _wfopen(archiveData->ArcName, L"rt");
+		if(f == NULL)
+		{
+			archiveData->OpenResult = E_EOPEN;
+			return 0;
+		}
+		curPath[0] = '\0';
+		mainSrcPath[0] = '\0';
+		firstLineRead = false;
+		notForTC = false;
+		settings.readConfig();
+		return f;
+		break;
+	default:
+		archiveData->OpenResult = E_NOT_SUPPORTED;
+		return 0;
+	}
+}
+
 
 int __stdcall ReadHeader (HANDLE handle, tHeaderData *headerData)
 {
@@ -257,6 +313,125 @@ again:
 	return retval == NULL ? E_END_ARCHIVE : 0;
 }
 
+int __stdcall ReadHeaderExW (HANDLE handle, tHeaderDataExW *headerData)
+{
+	char str[MAX_FULL_PATH_LEN];
+	char *retval, *lom;
+	unsigned __int64 fSize;
+
+again:
+	retval = fgets(str, MAX_FULL_PATH_LEN, (FILE*)handle);
+	lom = strrchr(str, '\\');
+	while(retval != NULL && ((str[0] == '\n' || str[0] == '\0') || (!firstLineRead && strchr(str, '\t') == NULL && lom != NULL && *(lom+1) <= '\n')))
+	{
+		if (!(str[0] == '\n' || str[0] == '\0')) {
+			strncpy(mainSrcPath, str, MAX_FULL_PATH_LEN); mainSrcPath[MAX_FULL_PATH_LEN - 1] = '\0';
+			if(mainSrcPath[strlen(mainSrcPath) - 1] == '\n')
+				mainSrcPath[strlen(mainSrcPath) - 1] = '\0';
+			if(mainSrcPath[0] != '\0' && mainSrcPath[strlen(mainSrcPath) - 1] != '\\')
+				strcat(mainSrcPath, "\\");
+			firstLineRead = true;
+		}
+		retval = fgets(str, MAX_FULL_PATH_LEN, (FILE*)handle);
+		lom = strrchr(str, '\\');
+	}
+
+	if(retval != NULL)
+	{
+		firstLineRead = true;
+		int i, cnt, year, month, day, hour, minute, second;
+
+		i = (int)strchr(str, '\t') - (int)str;
+		// fix for nonstandard lst files (no size and date)
+		if (i < 0)
+		{
+			i = strlen(str);
+			if (i > 0 && str[i - 1] == '\n')
+				i--;
+		}
+
+		// if not directory or separator
+		// or it contains full path
+		if(i != 0 && str[i - 1] != '\\' && !(str[1] == ':' && str[2] == '\\')) 
+		{
+			// prepend current directory
+			LPWSTR lp_sz_unicode_current_path=utf8_to_unicode(curPath);
+			wcscpy_s(headerData->FileName, MAX_FILE_NAME_LEN_EX, lp_sz_unicode_current_path);
+
+			char sz_temp_utf_buff[MAX_FILE_NAME_LEN_EX]={0};
+			strncpy_s(sz_temp_utf_buff,MAX_FILE_NAME_LEN_EX,str,i);
+			LPWSTR lp_sz_unicode_current_file=utf8_to_unicode(sz_temp_utf_buff);
+
+			wcsncat_s(headerData->FileName, MAX_FILE_NAME_LEN_EX, lp_sz_unicode_current_file, wcslen(lp_sz_unicode_current_file));
+			headerData->FileName[min(wcslen(lp_sz_unicode_current_path) + wcslen(lp_sz_unicode_current_file), MAX_FILE_NAME_LEN_EX - 1)] = '\0';
+
+			free(lp_sz_unicode_current_path);
+			free(lp_sz_unicode_current_file);
+		}
+		else
+		{
+			char sz_temp_utf_buff[MAX_FILE_NAME_LEN_EX]={0};
+			strncpy_s(sz_temp_utf_buff,MAX_FILE_NAME_LEN_EX,str,i);
+			LPWSTR lp_sz_unicode_current_file=utf8_to_unicode(sz_temp_utf_buff);
+
+			wcsncpy_s(headerData->FileName, MAX_FILE_NAME_LEN_EX, lp_sz_unicode_current_file, wcslen(lp_sz_unicode_current_file));
+			headerData->FileName[min(wcslen(lp_sz_unicode_current_file), MAX_FILE_NAME_LEN_EX - 1)] = '\0';
+			free(lp_sz_unicode_current_file);
+		}
+		headerData->UnpSize = 0;
+		headerData->UnpSizeHigh = 0;
+		fSize = year = month = day = hour = minute = second = 0;
+		cnt = sscanf(str + i, "%llu\t%d.%d.%d\t%d:%d.%d", &fSize,
+			&year, &month, &day,
+			&hour, &minute, &second);
+		headerData->FileTime = ((cnt < 4 && !notForTC) || (notForTC && cnt < 2)) ? -1 :
+			((year - 1980) << 25) | (month << 21) | (day << 16) |
+			(hour << 11) | (minute << 5) | (second/2);
+
+		if (notForTC) if (settings.getListColumns() < cnt + 1) settings.setListColumns(cnt + 1);
+
+		if(i == 0 || str[i - 1] == '\\')
+		{
+			char* lp_sz_utf8_current_path=unicode_to_utf8(headerData->FileName);
+			strcpy(curPath,lp_sz_utf8_current_path);
+			free(lp_sz_utf8_current_path);
+			if(i == 0)
+				goto again; // separator
+			// this way the packed file size will be displayed
+			if(fSize == 0)
+				headerData->FileAttr = 16;
+		}
+		else headerData->FileAttr = 0;
+
+		headerData->UnpSize = (int) fSize;
+		headerData->UnpSizeHigh = (int) _rotr64(fSize, 32);
+		headerData->CmtBuf = NULL;
+		headerData->CmtBufSize = 0;
+		headerData->CmtSize = 0;
+		headerData->CmtState = 0;
+		headerData->FileCRC = 0;
+		headerData->HostOS = 0;
+		memset(headerData->Reserved, 0, 1024);
+
+		char* lp_sz_utf8_current_file_name=unicode_to_utf8(headerData->FileName);
+		strcpy(curFileName, lp_sz_utf8_current_file_name);
+		free(lp_sz_utf8_current_file_name);
+		if (headerData->FileName[1] == ':' && 
+			headerData->FileName[2] == '\\')
+		{
+			if (headerData->FileName[3] == '\0') goto again; // skip c:\, x:\, etc.
+			if (!notForTC) {
+				// do not supply c:\ part (TC does not handle it properly)
+				for (i = 3; headerData->FileName[i] != '\0'; i++) {
+					headerData->FileName[i - 3] = headerData->FileName[i];
+				}
+				headerData->FileName[i - 3] = '\0';
+			}
+		}
+	}
+	return retval == NULL ? E_END_ARCHIVE : 0;
+}
+
 int __stdcall ProcessFile (HANDLE handle, int operation, char *destPath, char *destName)
 {
 	static char wholeNameSrc[MAX_FULL_PATH_LEN];
@@ -312,6 +487,69 @@ int __stdcall ProcessFile (HANDLE handle, int operation, char *destPath, char *d
 	return E_END_ARCHIVE;
 }
 
+int __stdcall ProcessFileW (HANDLE handle, int operation, wchar_t *destPath, wchar_t *destName)
+{
+	static wchar_t wholeNameSrc[MAX_FULL_PATH_LEN];
+	static wchar_t wholeNameDest[MAX_FULL_PATH_LEN];
+	static wchar_t buf[MAX_FULL_PATH_LEN];
+	FILE *fin, *fout;
+	int i;
+
+	switch(operation)
+	{
+	case PK_SKIP:
+	case PK_TEST:
+		return 0;
+	case PK_EXTRACT:
+		{
+			// copy mainSrcPath + curPath to destPath + destName
+			wchar_t* lp_sz_unicode_main_src_path=utf8_to_unicode(mainSrcPath);
+			wchar_t* lp_sz_unicode_cur_file_name=utf8_to_unicode(curFileName);
+			wcscpy(wholeNameSrc, lp_sz_unicode_main_src_path);
+			wcscat(wholeNameSrc, lp_sz_unicode_cur_file_name);
+			free(lp_sz_unicode_main_src_path);
+			free(lp_sz_unicode_cur_file_name);
+			if(destPath != NULL)
+				wcscpy(wholeNameDest, destPath);
+			else wholeNameDest[0] = '\0';
+				wcscat(wholeNameDest, destName);
+			fin = _wfopen(wholeNameSrc, L"rb");
+			while(fin == NULL)
+			{
+				if(changeVolFunctionW(wholeNameSrc, PK_VOL_ASK) == 0)
+					return 0;
+				fin = _wfopen(wholeNameSrc, L"rb");
+			}
+
+			fout = _wfopen(wholeNameDest, L"wb");
+			if(fout == NULL)
+			{
+				fclose(fin);
+				return E_ECREATE;
+			}
+			i = fread(buf, 1, MAX_FULL_PATH_LEN, fin);
+			while(i > 0)
+			{
+				fwrite(buf, i, 1, fout);
+				if (progressFunctionw(wholeNameSrc, i) == 0) {
+					fclose(fin);
+					fclose(fout);
+					_wunlink(wholeNameDest);
+					return E_EABORTED;
+				}
+				i = fread(buf, 1, MAX_FULL_PATH_LEN, fin);
+			}
+			fclose(fin);
+			fclose(fout);
+
+			return 0;
+		}
+	default:
+		return E_NOT_SUPPORTED;
+	}
+	return E_END_ARCHIVE;
+}
+
 int __stdcall CloseArchive (HANDLE handle)
 {
 	fclose((FILE*) handle);
@@ -323,9 +561,19 @@ void __stdcall SetChangeVolProc (HANDLE hArcData, tChangeVolProc pChangeVolProc)
 	changeVolFunction = pChangeVolProc;
 }
 
+void __stdcall SetChangeVolProcW (HANDLE hArcData, tChangeVolProcW pChangeVolProc)
+{
+	changeVolFunctionW = pChangeVolProc;
+}
+
 void __stdcall SetProcessDataProc (HANDLE hArcData, tProcessDataProc pProcessDataProc)
 {
 	progressFunction = pProcessDataProc;
+}
+
+void __stdcall SetProcessDataProcW (HANDLE hArcData, tProcessDataProcW pProcessDataProc)
+{
+	progressFunctionw = pProcessDataProc;
 }
 
 int __stdcall GetPackerCaps()
@@ -359,7 +607,8 @@ void FillSortedListFromFile(DirTree **sortedList, FILE* fin) {
 int __stdcall DeleteFiles (char *PackedFile, char *deleteList)
 {
 	FILE *fout = fopen(PackedFile, "rt");
-	if (fout == NULL) return E_EOPEN;
+	if (fout == NULL)
+		return E_EOPEN;
 	DirTree *sortedList = NULL;
 	FillSortedListFromFile(&sortedList, fout);
 	fclose(fout);
@@ -370,7 +619,8 @@ int __stdcall DeleteFiles (char *PackedFile, char *deleteList)
 		return E_EOPEN;
 	}
 
-	if (mainSrcPath[0] != '\0') fprintf(fout, "%s\n", mainSrcPath);
+	if (mainSrcPath[0] != '\0')
+		fprintf(fout, "%s\n", mainSrcPath);
 
 	int i = 0;
 	char fName[MAX_FULL_PATH_LEN];
@@ -397,13 +647,61 @@ int __stdcall DeleteFiles (char *PackedFile, char *deleteList)
 	return 0;
 }
 
+
+int __stdcall DeleteFilesW (wchar_t *PackedFile, wchar_t *deleteList)
+{
+	FILE *fout = _wfopen(PackedFile, L"rt");
+	if (fout == NULL)
+		return E_EOPEN;
+	DirTree *sortedList = NULL;
+	FillSortedListFromFile(&sortedList, fout);
+	fclose(fout);
+
+	fout = _wfopen(PackedFile, L"wt");
+	if (fout == NULL) {
+		delete sortedList;
+		return E_EOPEN;
+	}
+
+	if (mainSrcPath[0] != '\0')
+		fprintf(fout, "%s\n", mainSrcPath);
+
+	int i = 0;
+	wchar_t sz_wcs_file_name[MAX_FULL_PATH_LEN];
+	while(deleteList[i] != '\0')
+	{
+		sz_wcs_file_name[0]=0;
+		wcscpy(sz_wcs_file_name,deleteList+i);
+
+		int n = wcslen(sz_wcs_file_name);
+		if (n > 4) { // delete whole directory
+			if (sz_wcs_file_name[n-3] == L'*' && sz_wcs_file_name[n-2] == L'.' && sz_wcs_file_name[n-1] == L'*')
+				sz_wcs_file_name[n-3] = '\0';
+		}
+
+		char* lp_sz_utf8_file_name=unicode_to_utf8(sz_wcs_file_name);
+		sortedList->remove(lp_sz_utf8_file_name);
+		free(lp_sz_utf8_file_name);
+
+		i += wcslen(deleteList + i) + 1;
+	}
+
+	curPath[0] = '\0';
+	sortedList->writeOut(fout, curPath);
+	delete sortedList;	
+	fclose(fout);
+	return 0;
+}
+
 int DetermineFileTypeFromName(const char* fName) {
 	int fNameLen = strlen(fName);
-	if(fName[fNameLen - 1] == '\\') return FILE_TYPE_DIRECTORY;
+	if(fName[fNameLen - 1] == '\\')
+		return FILE_TYPE_DIRECTORY;
 
 	int i;
 	char *fNameCI = (char*) malloc(fNameLen+1);
-	for (i = 0; fName[i] != '\0'; i++) fNameCI[i] = tolower(fName[i]);
+	for (i = 0; fName[i] != '\0'; i++)
+		fNameCI[i] = tolower(fName[i]);
 	fNameCI[i] = '\0';
 	for (i = 0; fNameCI[i] != '\0'; i++) {
 		if (fNameCI[i] == '.') {
@@ -419,10 +717,40 @@ int DetermineFileTypeFromName(const char* fName) {
 	return FILE_TYPE_REGULAR;
 }
 
+int DetermineFileTypeFromName(const wchar_t* fName) {
+	int fNameLen = wcslen(fName);
+	if(fName[fNameLen - 1] == '\\')
+		return FILE_TYPE_DIRECTORY;
+
+	int i;
+	wchar_t *fNameCI = (wchar_t *) malloc((fNameLen+1)*4);
+	for (i = 0; fName[i] != '\0'; i++)
+		fNameCI[i] = towlower(fName[i]);
+	fNameCI[i] = '\0';
+	for (i = 0; fNameCI[i] != '\0'; i++) {
+		if (fNameCI[i] == '.') 
+		{
+			char* lp_sz_utf8_file_type=unicode_to_utf8(fNameCI+i);
+			settings.fileTypeMapIt = settings.fileTypeMap.find(lp_sz_utf8_file_type);
+			free(lp_sz_utf8_file_type);
+			if (settings.fileTypeMapIt != settings.fileTypeMap.end())
+			{
+				settings.which_wcx = settings.fileTypeMapIt->second.which_wcx;
+				free(fNameCI);
+				return settings.fileTypeMapIt->second.fileType;
+			}
+		}
+	}
+	free(fNameCI);
+	return FILE_TYPE_REGULAR;
+}
+
 bool DetermineWcxHandleableFromName(const char* fName) {
-	if (settings.wcxHandleableSet.empty()) return true;
+	if (settings.wcxHandleableSet.empty())
+		return true;
 	int fNameLen = strlen(fName);
-	if(fName[fNameLen - 1] == '\\') return false;
+	if(fName[fNameLen - 1] == '\\')
+		return false;
 
 	int i;
 	char *fNameCI = (char*) malloc(fNameLen+1);
@@ -431,7 +759,38 @@ bool DetermineWcxHandleableFromName(const char* fName) {
 	for (i = 0; fNameCI[i] != '\0'; i++) {
 		if (fNameCI[i] == '.') {
 			settings.wcxHandleableSetIt = settings.wcxHandleableSet.find(fNameCI+i);
-			if (settings.wcxHandleableSetIt != settings.wcxHandleableSet.end()) {
+			if (settings.wcxHandleableSetIt != settings.wcxHandleableSet.end())
+			{
+				free(fNameCI);
+				return true;
+			}
+		}
+	}
+	free(fNameCI);
+	return false;
+}
+
+bool DetermineWcxHandleableFromName(const wchar_t* fName)
+{
+	if (settings.wcxHandleableSet.empty())
+		return true;
+	int fNameLen = wcslen(fName);
+	if(fName[fNameLen - 1] == '\\')
+		return false;
+
+	int i;
+	wchar_t *fNameCI = (wchar_t*) malloc((fNameLen+1)*4);
+	for (i = 0; fName[i] != '\0'; i++)
+		fNameCI[i] = towlower(fName[i]);
+	fNameCI[i] = '\0';
+	for (i = 0; fNameCI[i] != '\0'; i++) {
+		if (fNameCI[i] == '.') 
+		{
+			char* lp_sz_utf8_ext_name=unicode_to_utf8(fNameCI+i);
+			settings.wcxHandleableSetIt = settings.wcxHandleableSet.find(lp_sz_utf8_ext_name);
+			free(lp_sz_utf8_ext_name);
+			if (settings.wcxHandleableSetIt != settings.wcxHandleableSet.end())
+			{
 				free(fNameCI);
 				return true;
 			}
@@ -468,7 +827,35 @@ int DetermineFileType(const char *fName)
 	return fType;
 }
 
-LIST_OPTION_ENUM GetFileListType(const char *fName) {
+int DetermineFileType(const wchar_t *fName)
+{
+	int fType = DetermineFileTypeFromName(fName);
+	// directory added by F7 does not exist
+	if (fType == FILE_TYPE_REGULAR && settings.getTryCanYouHandleThisFile() && DetermineWcxHandleableFromName(fName)) {
+		// try to determine file type using wcx plugins' CanYouHandleThisFile
+
+		for (settings.which_wcx = settings.wcxmap.begin(); settings.which_wcx != settings.wcxmap.end(); ++settings.which_wcx) {
+			if (settings.getCanYouHandleThisFile(settings.which_wcx)) {
+				HMODULE hwcx = NULL;
+				if(!(hwcx = LoadLibrary(settings.which_wcx->second.first.c_str()))) {
+					return fType;
+				}
+				fCanYouHandleThisFile pCanYouHandleThisFile = NULL;
+				pCanYouHandleThisFile = (fCanYouHandleThisFile) GetProcAddress(hwcx, "CanYouHandleThisFile");
+				if (pCanYouHandleThisFile((char*)fName)) {
+					fType = FILE_TYPE_BY_WCX;
+					FreeLibrary(hwcx);
+					break;
+				}
+				FreeLibrary(hwcx);
+			}
+		}
+	}
+	return fType;
+}
+
+LIST_OPTION_ENUM GetFileListType(const char *fName)
+{
 	int i;
 	char *fNameCI = (char*) malloc(strlen(fName)+1);
 	for (i = 0; fName[i] != '\0'; i++) fNameCI[i] = tolower(fName[i]);
@@ -486,11 +873,50 @@ LIST_OPTION_ENUM GetFileListType(const char *fName) {
 	return LIST_YES;
 }
 
+LIST_OPTION_ENUM GetFileListType(const wchar_t *fName)
+{
+	int i;
+	wchar_t *fNameCI = (wchar_t*) malloc((wcslen(fName)+1)*4);
+	for (i = 0; fName[i] != '\0'; i++)
+		fNameCI[i] = towlower(fName[i]);
+	fNameCI[i] = '\0';
+	for (i = 0; fNameCI[i] != '\0'; i++) {
+		if (fNameCI[i] == '.')
+		{
+			char* lp_sz_utf8_ext_name=unicode_to_utf8(fNameCI+i);
+			settings.fileTypeMapIt = settings.fileTypeMap.find(lp_sz_utf8_ext_name);
+			free(lp_sz_utf8_ext_name);
+			if (settings.fileTypeMapIt != settings.fileTypeMap.end()) {
+				free(fNameCI);
+				return settings.fileTypeMapIt->second.list_this;
+			}
+		}
+	}
+	free(fNameCI);
+	return LIST_YES;
+}
+
 void SetFileListType(const char *fName, LIST_OPTION_ENUM list_this) {
 	int i;
 	for (i = 0; fName[i] != '\0'; i++) {
 		if (fName[i] == '.') {
 			settings.fileTypeMapIt = settings.fileTypeMap.find(fName+i);
+			if (settings.fileTypeMapIt != settings.fileTypeMap.end()) {
+				settings.fileTypeMapIt->second.list_this = list_this;
+				return;
+			}
+		}
+	}
+}
+
+void SetFileListType(const wchar_t *fName, LIST_OPTION_ENUM list_this) {
+	int i;
+	for (i = 0; fName[i] != '\0'; i++) {
+		if (fName[i] == '.') 
+		{
+			char* lp_sz_utf8_ext_name=unicode_to_utf8((wchar_t*)fName+i);
+			settings.fileTypeMapIt = settings.fileTypeMap.find(lp_sz_utf8_ext_name);
+			free(lp_sz_utf8_ext_name);
 			if (settings.fileTypeMapIt != settings.fileTypeMap.end()) {
 				settings.fileTypeMapIt->second.list_this = list_this;
 				return;
@@ -602,7 +1028,7 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 					fType = FILE_TYPE_REGULAR;
 					break;
 				case LIST_ASK:
-					switch(DialogBoxParam(dllInstance, MAKEINTRESOURCE(IDD_LIST_FILE), NULL, DialogFunc2, (LPARAM)fName))
+					switch(DialogBoxParam(dllInstance, MAKEINTRESOURCE(IDD_LIST_FILE), NULL, (DLGPROC)DialogFunc2, (LPARAM)fName))
 					{
 					case 1: // No
 						fType = FILE_TYPE_REGULAR;
@@ -756,6 +1182,343 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 	fout = fopen(packedFile, "wt");
 	if(fout == NULL) return E_EWRITE;
 	if (mainSrcPath[0] != '\0') fprintf(fout, "%s\n", mainSrcPath);
+	curPath[0] = '\0';
+	sortedList->writeOut(fout, curPath);
+	fclose(fout);
+
+	delete sortedList;
+	sortedList = NULL;
+
+	return 0;
+}
+
+int __stdcall PackFilesW(wchar_t *packedFile, wchar_t *subPath, wchar_t *srcPath, wchar_t *addList, int flags)
+{
+	int i, j;
+	wchar_t str[MAX_FULL_PATH_LEN];
+	wchar_t fName[MAX_FULL_PATH_LEN];
+//	char fDestName[MAX_FULL_PATH_LEN];
+	int fType;
+	unsigned timeStamp;
+
+	char* lp_sz_utf8_srcPath=unicode_to_utf8(srcPath);
+	strcpy(mainSrcPath, lp_sz_utf8_srcPath);
+	free(lp_sz_utf8_srcPath);
+
+	// are we updateing?
+	fout = _wfopen(packedFile, L"rt");
+	if (fout != NULL) {
+		FillSortedListFromFile(&sortedList, fout);
+		fclose(fout);
+/*
+		if (strcmp(mainSrcPath, srcPath) != 0) {
+			MessageBox(NULL, "You are adding files from different directory", "DiskDirExtended - Question", MB_ICONQUESTION | MB_OKCANCEL);
+			return E_EABORTED;
+		}
+*/
+	} else {
+		if (sortedList != NULL)
+			delete sortedList;
+		sortedList = new DirTree();
+	}
+
+	int oldListColumns = settings.getListColumns();
+	settings.readConfig();
+	if (settings.getListColumns() != oldListColumns) {
+		char res[8192];
+		char msg[8192];
+		LoadString(dllInstance, IDS_LIST_COLUMNS_QUERY, res, 8192);
+		sprintf_s(msg, res, settings.getListColumns(), oldListColumns, oldListColumns);
+		LoadString(dllInstance, IDS_LIST_COLUMNS_TITLE, res, 8192);
+		switch (MessageBox(NULL, msg, res, MB_ICONQUESTION | MB_YESNOCANCEL | MB_TASKMODAL)) {
+			case IDYES:
+				settings.setListColumns(oldListColumns);
+			break;
+			case IDNO:
+				// listColumns already are what user wants
+			break;
+			default:
+				return E_EABORTED;
+		}
+	}
+
+	curPath[0] = '\0';
+	curDestPath[0] = '\0';
+	if(subPath != NULL)
+	{
+		char* lp_sz_utf8_subPath=unicode_to_utf8(subPath);
+		strcpy(curDestPath, lp_sz_utf8_subPath);
+		free(lp_sz_utf8_subPath);
+		if(curDestPath[strlen(curDestPath) - 1] != '\\')
+			strcat(curDestPath, "\\");
+	}
+
+	i = 0;
+	while(addList[i] != '\0')
+	{
+		wcscpy(str, srcPath);
+		if(str[0] != '\0' && str[wcslen(str) - 1] != '\\')
+			wcscat(str, L"\\");
+		wcscat(str, addList + i);
+
+		WIN32_FILE_ATTRIBUTE_DATA buf;
+		FILETIME t;
+		SYSTEMTIME ts;
+
+		GetFileAttributesExW(str, GetFileExInfoStandard, (LPVOID)(&buf));
+		// sometimes we get directory without ending backslash
+		if (buf.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+		{
+			if (str[wcslen(str) - 1] != '\\')
+				wcscat(str, L"\\");
+		}
+		
+		fType = DetermineFileType(str);
+		if(fType == FILE_TYPE_DIRECTORY)
+		{
+			FileTimeToLocalFileTime(&(buf.ftLastWriteTime), &t);
+			str[wcslen(str) - 1] = '\\';
+			buf.nFileSizeLow = 0;
+		}
+		else FileTimeToLocalFileTime(&(buf.ftLastWriteTime), &t);
+		FileTimeToSystemTime(&t, &ts);
+
+		timeStamp = ((ts.wYear - 1980) << 25) | (ts.wMonth << 21) | (ts.wDay << 16) |
+					(ts.wHour << 11) | (ts.wMinute << 5) | (ts.wSecond / 2);
+
+		wcscpy(fName, addList + i);
+		if (progressFunctionw(fName, 0) == 0) {
+			delete sortedList;
+			sortedList = NULL;
+			return E_EABORTED;
+		}
+
+		if (fType != FILE_TYPE_DIRECTORY) {
+			// if we do not want to list any archive OR
+			// if we do not want to list any file except directories
+			if (!settings.getListArchives() || settings.getListOnlyDirectories()) fType = FILE_TYPE_REGULAR;
+			else
+			switch(GetFileListType(fName))
+			{
+				case LIST_NO:
+					fType = FILE_TYPE_REGULAR;
+					break;
+				case LIST_ASK:
+					switch(DialogBoxParam(dllInstance, MAKEINTRESOURCE(IDD_LIST_FILE), NULL, (DLGPROC)DialogFunc2, (LPARAM)fName))
+					{
+					case 1: // No
+						fType = FILE_TYPE_REGULAR;
+						break;
+					case 2: // Yes for all
+						SetFileListType(fName, LIST_YES);
+						break;
+					case 3: // No for all
+						SetFileListType(fName, LIST_NO);
+						fType = FILE_TYPE_REGULAR;
+						break;
+					}
+					break;
+				case LIST_YES:
+					break;
+			}
+		} else {
+			if (fName[wcslen(fName) - 1] != '\\')
+				wcscat(fName,L"\\");
+		}
+		switch(fType)
+		{
+			case FILE_TYPE_BY_WCX:
+				{
+					wcscat(fName, L"\\");
+					char* lp_sz_utf8_file_name=unicode_to_utf8(fName);
+					sortedList->insert(curDestPath, lp_sz_utf8_file_name, buf.nFileSizeHigh * 0x100000000ULL + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+					strcpy(curPath, lp_sz_utf8_file_name);
+					free(lp_sz_utf8_file_name);
+					basePathCnt = strlen(curPath);
+					char* lp_sz_ansi_file_path=unicode_to_ansi(str);
+					if ((j = ListByWCX(settings.which_wcx->second.first.c_str(), lp_sz_ansi_file_path)) < 0)
+					{
+						delete sortedList;
+						sortedList = NULL;
+						return E_EABORTED;
+					} else if (j == 0 && !settings.getListEmptyFile()) {
+						sortedList->doNotListAsDirLastInserted();
+					}
+					free(lp_sz_ansi_file_path);
+				}
+			break;
+			case FILE_TYPE_ZIP:
+			case FILE_TYPE_JAR:
+				{
+					wcscat(fName, L"\\");
+					char* lp_sz_utf8_file_name=unicode_to_utf8(fName);
+					sortedList->insert(curDestPath, lp_sz_utf8_file_name, buf.nFileSizeHigh * 0x100000000ULL + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+					strcpy(curPath, lp_sz_utf8_file_name);
+					free(lp_sz_utf8_file_name);
+					basePathCnt = strlen(curPath);
+					char* lp_sz_ansi_file_path=unicode_to_ansi(str);
+					if ((j = ListZIP(lp_sz_ansi_file_path)) < 0) {
+						delete sortedList;
+						sortedList = NULL;
+						return E_EABORTED;
+					} else if (j == 0 && !settings.getListEmptyFile()) {
+						sortedList->doNotListAsDirLastInserted();
+					}
+					free(lp_sz_ansi_file_path);
+				}
+			break;
+			case FILE_TYPE_RAR:
+				{
+					wcscat(fName, L"\\");
+					char* lp_sz_utf8_file_name=unicode_to_utf8(fName);
+					sortedList->insert(curDestPath, lp_sz_utf8_file_name, buf.nFileSizeHigh * 0x100000000ULL + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+					strcpy(curPath, lp_sz_utf8_file_name);
+					free(lp_sz_utf8_file_name);
+					basePathCnt = strlen(curPath);
+					char* lp_sz_ansi_file_path=unicode_to_ansi(str);
+					if ((j = ListRAR(lp_sz_ansi_file_path)) < 0) {
+						delete sortedList;
+						sortedList = NULL;
+						return E_EABORTED;
+					} else if (j == 0 && !settings.getListEmptyFile()) {
+						sortedList->doNotListAsDirLastInserted();
+					}
+					free(lp_sz_ansi_file_path);
+				}
+			break;
+			case FILE_TYPE_TAR:
+			case FILE_TYPE_TGZ:
+			case FILE_TYPE_TBZ:
+				{
+					wcscat(fName, L"\\");
+					char* lp_sz_utf8_file_name=unicode_to_utf8(fName);
+					sortedList->insert(curDestPath, lp_sz_utf8_file_name, buf.nFileSizeHigh * 0x100000000ULL + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+					strcpy(curPath, lp_sz_utf8_file_name);
+					free(lp_sz_utf8_file_name);
+					basePathCnt = strlen(curPath);
+					char* lp_sz_ansi_file_path=unicode_to_ansi(str);
+					if ((j = ListTAR(lp_sz_ansi_file_path, fType)) < 0) {
+						delete sortedList;
+						sortedList = NULL;
+						return E_EABORTED;
+					} else if (j == 0 && !settings.getListEmptyFile()) {
+						sortedList->doNotListAsDirLastInserted();
+					}
+					free(lp_sz_ansi_file_path);
+				}
+			break;
+			case FILE_TYPE_ARJ:
+				{
+					wcscat(fName, L"\\");
+					char* lp_sz_utf8_file_name=unicode_to_utf8(fName);
+					sortedList->insert(curDestPath, lp_sz_utf8_file_name, buf.nFileSizeHigh * 0x100000000ULL + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+					strcpy(curPath, lp_sz_utf8_file_name);
+					free(lp_sz_utf8_file_name);
+					basePathCnt = strlen(curPath);
+
+					char* lp_sz_ansi_file_path=unicode_to_ansi(str);
+					if ((j = ListARJ(lp_sz_ansi_file_path)) < 0) {
+						delete sortedList;
+						sortedList = NULL;
+						return E_EABORTED;
+					} else if (j == 0 && !settings.getListEmptyFile()) {
+						sortedList->doNotListAsDirLastInserted();
+					}
+					free(lp_sz_ansi_file_path);
+				}
+			break;
+			case FILE_TYPE_ACE:
+				{
+					wcscat(fName, L"\\");
+					char* lp_sz_utf8_file_name=unicode_to_utf8(fName);
+					sortedList->insert(curDestPath, lp_sz_utf8_file_name, buf.nFileSizeHigh * 0x100000000ULL + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+					strcpy(curPath, lp_sz_utf8_file_name);
+					free(lp_sz_utf8_file_name);
+					basePathCnt = strlen(curPath);
+
+					char* lp_sz_ansi_file_path=unicode_to_ansi(str);
+					if ((j = ListACE(lp_sz_ansi_file_path)) < 0) {
+						delete sortedList;
+						sortedList = NULL;
+						return E_EABORTED;
+					} else if (j == 0 && !settings.getListEmptyFile()) {
+						sortedList->doNotListAsDirLastInserted();
+					}
+					free(lp_sz_ansi_file_path);
+				}
+			break;
+			case FILE_TYPE_CAB:
+				{
+					wcscat(fName, L"\\");
+					char* lp_sz_utf8_file_name=unicode_to_utf8(fName);
+					sortedList->insert(curDestPath, lp_sz_utf8_file_name, buf.nFileSizeHigh * 0x100000000ULL + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+					strcpy(curPath, lp_sz_utf8_file_name);
+					free(lp_sz_utf8_file_name);
+					basePathCnt = strlen(curPath);
+
+					char* lp_sz_ansi_file_path=unicode_to_ansi(str);
+					if ((j = ListCAB(lp_sz_ansi_file_path)) < 0) {
+						delete sortedList;
+						sortedList = NULL;
+						return E_EABORTED;
+					} else if (j == 0 && !settings.getListEmptyFile()) {
+						sortedList->doNotListAsDirLastInserted();
+					}
+					free(lp_sz_ansi_file_path);
+				}
+			break;
+			case FILE_TYPE_ISO:
+				{
+					wcscat(fName, L"\\");
+					char* lp_sz_utf8_file_name=unicode_to_utf8(fName);
+					sortedList->insert(curDestPath, lp_sz_utf8_file_name, buf.nFileSizeHigh * 0x100000000ULL + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+					strcpy(curPath, lp_sz_utf8_file_name);
+					free(lp_sz_utf8_file_name);
+					basePathCnt = strlen(curPath);
+
+					char* lp_sz_ansi_file_path=unicode_to_ansi(str);
+					if ((j = ListISO(lp_sz_ansi_file_path)) < 0) {
+						delete sortedList;
+						sortedList = NULL;
+						return E_EABORTED;
+					} else if (j == 0 && !settings.getListEmptyFile()) {
+						sortedList->doNotListAsDirLastInserted();
+					}
+					free(lp_sz_ansi_file_path);
+				}
+
+			break;
+			case FILE_TYPE_REGULAR:
+				// do not list regular file
+				if (settings.getListOnlyDirectories())
+					break;
+			default:
+				{
+					char* lp_sz_utf8_file_name=unicode_to_utf8(fName);
+					sortedList->insert(
+						curDestPath,
+						lp_sz_utf8_file_name,
+						buf.nFileSizeHigh * 0x100000000ULL + buf.nFileSizeLow,
+						timeStamp,
+						fType);
+					basePathCnt = 0;
+					free(lp_sz_utf8_file_name);
+				}
+		}
+		if (progressFunctionw(fName, buf.nFileSizeLow) == 0) {
+			delete sortedList;
+			sortedList = NULL;
+			return E_EABORTED;
+		}
+
+		i += wcslen(addList + i) + 1;
+	}
+
+	fout = _wfopen(packedFile, L"wt");
+	if(fout == NULL)
+		return E_EWRITE;
+	if (mainSrcPath[0] != '\0')
+		fprintf(fout, "%s\n", mainSrcPath);
 	curPath[0] = '\0';
 	sortedList->writeOut(fout, curPath);
 	fclose(fout);
@@ -1316,9 +2079,9 @@ BOOL CALLBACK DialogFunc(HWND hdwnd, UINT Msg, WPARAM wParam, LPARAM lParam);
 
 void __stdcall ConfigurePacker (HWND parent, HINSTANCE dllInstance)
 {
-//	MessageBox(parent, "Version 1.0\nLists ACE, ARJ, CAB, JAR, RAR, ZIP\n(c) 2005 Peter Trebatický, Bratislava (Slovakia)\nmailto: peter.trebaticky@gmail.com", "DiskDir Extended", MB_OK);
+//	MessageBox(parent, "Version 1.0\nLists ACE, ARJ, CAB, JAR, RAR, ZIP\n(c) 2005 Peter Trebatick?, Bratislava (Slovakia)\nmailto: peter.trebaticky@gmail.com", "DiskDir Extended", MB_OK);
 //	long a = GetWindowThreadProcessId(parent, NULL);
-	DialogBox(dllInstance, MAKEINTRESOURCE(IDD_SETTINGS), parent, DialogFunc);
+	DialogBox(dllInstance, MAKEINTRESOURCE(IDD_SETTINGS), parent, (DLGPROC)DialogFunc);
 }
 
 BOOL CALLBACK DialogFunc(HWND hdwnd, UINT Msg, WPARAM wParam, LPARAM lParam)
@@ -1793,7 +2556,7 @@ enum read_header read_header(gzFile ftar, int fType)
 			if (*longp)
 				free (*longp);
 			size = current_stat.st_size;
-			if (size != current_stat.st_size);
+//			if (size != current_stat.st_size);
 //				FATAL_ERROR ((0, 0, _("Memory exhausted")));
 			bp = *longp = (char *) malloc (size);
 
@@ -1856,7 +2619,7 @@ void skip_file (gzFile ftar, size_t size, int fType)
 	while ((int)size > 0)
 	{
 		x = find_next_block (ftar, fType);
-		if (x == NULL);
+//		if (x == NULL);
 //			FATAL_ERROR ((0, 0, _("Unexpected EOF on archive file")));
 
 		set_next_block_after (x);

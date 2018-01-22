@@ -1,3 +1,9 @@
+# diskdir-extended
+change diskdir-extended(tc plugins) source code to support unicode list(utf8 with no bom)
+
+original source code come from http://totalcmd.net/plugring/diskdir_extended.html
+
+
 DiskDir Extended 1.68 (2013-09-18) - plugin for Total Commander
 ================
 
